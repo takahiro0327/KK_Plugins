@@ -204,9 +204,9 @@ namespace KK_Plugins.MaterialEditor
 
             var usedTexIDMap = MEAnimationController.GetUsedTexIDSet(AnimationControllerMap, coordinateMaterialTexturePropertyList);
 
-
-            foreach( var texID in coordinateMaterialTexturePropertyList.Keys )
-                usedTexIDMap.Add(texID);
+            foreach( var coord in coordinateMaterialTexturePropertyList )
+                if( coord.TexID.HasValue )
+                    usedTexIDMap.Add(coord.TexID.Value);
 
             foreach (var tex in TextureDictionary)
             {
