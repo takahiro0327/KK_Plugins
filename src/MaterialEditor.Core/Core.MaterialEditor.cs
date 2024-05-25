@@ -42,6 +42,8 @@ namespace KK_Plugins.MaterialEditor
     [BepInDependency(ExtendedSave.GUID, ExtendedSave.Version)]
 #if !PH
     [BepInDependency(Sideloader.Sideloader.GUID, Sideloader.Sideloader.Version)]
+#elif KK || KKS
+    [BepInDependency("com.deathweasel.bepinex.moreoutfits", BepInDependency.DependencyFlags.SoftDependency)]
 #endif
     [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
     public partial class MaterialEditorPlugin : MaterialEditorAPI.MaterialEditorPluginBase
@@ -58,12 +60,13 @@ namespace KK_Plugins.MaterialEditor
         /// <summary>
         /// MaterialEditor plugin version
         /// </summary>
-        public const string PluginVersion = "3.6.0";
+        public const string PluginVersion = "3.7.0";
 
         /// <summary>
         /// Material which is used in normal map conversion
         /// </summary>
         private static Material NormalMapConvertMaterial;
+        private static Material NormalMapOpenGLConvertMaterial;
 
 #if KK || EC || KKS
         internal static ConfigEntry<bool> RimRemover { get; private set; }
@@ -80,6 +83,7 @@ namespace KK_Plugins.MaterialEditor
         internal static ConfigEntry<KeyboardShortcut> EnableReceiveShadows { get; private set; }
         internal static ConfigEntry<KeyboardShortcut> ResetReceiveShadows { get; private set; }
         internal static ConfigEntry<KeyboardShortcut> PasteEditsHotkey { get; private set; }
+        internal static ConfigEntry<KeyboardShortcut> PurgeOrphanedPropertiesHotkey { get; private set; }
 
         internal static ConfigEntry<bool> RendererCachingEnabled { get; private set; }
 
@@ -149,6 +153,7 @@ namespace KK_Plugins.MaterialEditor
             EnableReceiveShadows = Config.Bind("Keyboard Shortcuts", "Enable ReceiveShadows", new KeyboardShortcut(KeyCode.N, KeyCode.LeftAlt), "Enable ReceiveShadows for all selected items and their child items in Studio");
             ResetReceiveShadows = Config.Bind("Keyboard Shortcuts", "Reset ReceiveShadows", new KeyboardShortcut(KeyCode.N, KeyCode.LeftControl, KeyCode.LeftAlt), "Reset ReceiveShadows for all selected items and their child items in Studio");
             PasteEditsHotkey = Config.Bind("Keyboard Shortcuts", "Paste Edits", new KeyboardShortcut(KeyCode.N), "Paste any copied edits for all selected items and their child items in Studio");
+            PurgeOrphanedPropertiesHotkey = Config.Bind("Keyboard Shortcuts", "Purge Orphaned Properties", new KeyboardShortcut(KeyCode.R, KeyCode.LeftShift, KeyCode.LeftControl), "Remove any properties no longer associated with anything on the current outfit");
 #if PH
             //Disable ShaderOptimization since it doesn't work properly
             ShaderOptimization.Value = false;
@@ -215,6 +220,17 @@ namespace KK_Plugins.MaterialEditor
                 if (method != null)
                     harmony.Patch(method, new HarmonyMethod(typeof(Hooks).GetMethod(nameof(Hooks.UncensorSelectorHookStudio), AccessTools.all)));
             }
+
+#if KK || KKS
+            //Hook to delete properties of an outfit that gets removed
+            var moreOutfitsType = Type.GetType($"KK_Plugins.MoreOutfits.Plugin, {Constants.Prefix}_MoreOutfits");
+            if(moreOutfitsType != null)
+            {
+                var method = moreOutfitsType.GetMethod("RemoveCoordinateSlot", AccessTools.all);
+                if (method != null)
+                    harmony.Patch(method, postfix: new HarmonyMethod(typeof(Hooks).GetMethod(nameof(Hooks.RemoveCoordinateSlotHook), AccessTools.all)));
+            }
+#endif
 
             StartCoroutine(LoadXML());
             StartCoroutine(GetUncensorSelectorParts());
@@ -889,7 +905,9 @@ namespace KK_Plugins.MaterialEditor
         {
             AssetBundle bundle = AssetBundle.LoadFromMemory(UILib.Resource.LoadEmbeddedResource($"{nameof(KK_Plugins)}.Resources.normal_convert.unity3d"));
             var shader = bundle.LoadAsset<Shader>("normal_convert");
+            var shader_opengl = bundle.LoadAsset<Shader>("normal_convert_opengl");
             NormalMapConvertMaterial = new Material(shader);
+            NormalMapOpenGLConvertMaterial = new Material(shader_opengl);
         }
 
 #if EC || KKS
@@ -979,12 +997,15 @@ namespace KK_Plugins.MaterialEditor
         }
 #endif
 
-        protected override Texture ConvertNormalMap( Texture tex)
+        protected override Texture ConvertNormalMap(Texture tex)
         {
+            var material = NormalMapConvertMaterial;
+            if (IsUncompressedNormalMap(tex))
+                material = NormalMapOpenGLConvertMaterial;
             RenderTexture rt = new RenderTexture(tex.width, tex.height, 0);
             rt.useMipMap = true;
             rt.autoGenerateMips = true;
-            Graphics.Blit(tex, rt, NormalMapConvertMaterial);
+            Graphics.Blit(tex, rt, material);
             rt.wrapMode = tex.wrapMode;
 
             return rt;

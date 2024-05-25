@@ -284,7 +284,7 @@ namespace KK_Plugins.MaterialEditor
 
                         bool setTex = false;
                         if (newTextureProperty.TexID != null)
-                            setTex = SetTextureWithProperty(ociItem.objectItem, newTextureProperty);
+                            setTex = SetTextureWithProperty(ociItem.objectItem, newTextureProperty.MaterialName, newTextureProperty.Property, TextureDictionary[(int)newTextureProperty.TexID].Texture);
 
                         bool setOffset = SetTextureOffset(ociItem.objectItem, newTextureProperty.MaterialName, newTextureProperty.Property, newTextureProperty.Offset);
                         bool setScale = SetTextureScale(ociItem.objectItem, newTextureProperty.MaterialName, newTextureProperty.Property, newTextureProperty.Scale);
@@ -1258,7 +1258,11 @@ namespace KK_Plugins.MaterialEditor
             {
                 var texBytes = File.ReadAllBytes(filePath);
                 var texID = SetAndGetTextureID(texBytes);
-                
+
+                var tex = TextureDictionary[texID].Texture;
+                Instance.ConvertNormalMap(ref tex, propertyName);
+                SetTexture(go, material.NameFormatted(), propertyName, tex);
+
                 var textureProperty = MaterialTexturePropertyList.FirstOrDefault(x => x.ID == id && x.Property == propertyName && x.MaterialName == material.NameFormatted());
                 if (textureProperty == null)
                 {
@@ -1329,6 +1333,10 @@ namespace KK_Plugins.MaterialEditor
 
             var texID = SetAndGetTextureID(data);
 
+            var tex = TextureDictionary[texID].Texture;
+            Instance.ConvertNormalMap(ref tex, propertyName);
+            SetTexture(go, material.NameFormatted(), propertyName, tex);
+
             var textureProperty = MaterialTexturePropertyList.FirstOrDefault(x => x.ID == id && x.Property == propertyName && x.MaterialName == material.NameFormatted());
             if (textureProperty == null)
             {
@@ -1391,7 +1399,7 @@ namespace KK_Plugins.MaterialEditor
         {
             if (!textureProperty.NullCheck())
                 return;
-            MaterialTexturePropertyList.Remove(textureProperty);
+                    MaterialTexturePropertyList.Remove(textureProperty);
             AnimationControllerMap.Remove(textureProperty);
         }
 
